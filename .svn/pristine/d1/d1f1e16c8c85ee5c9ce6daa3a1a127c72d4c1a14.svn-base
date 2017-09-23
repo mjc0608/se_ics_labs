@@ -1,0 +1,50 @@
+# Name: Jiacheng Ma
+# ID:   5140379041
+
+        .pos 0
+init:   irmovl Stack,%esp
+        irmovl Stack,%ebp
+        call Main
+        halt
+
+        .align 4
+ele1:
+        .long 0x00a
+        .long ele2
+ele2:
+        .long 0x0b0
+        .long ele3
+ele3:
+        .long 0xc00
+        .long 0
+
+Main:   pushl %ebp
+        rrmovl %esp,%ebp
+        irmovl ele1,%eax
+        pushl %eax
+        call Sum
+        rrmovl %ebp,%esp
+        popl %ebp
+        ret
+
+Sum:    pushl %ebp
+        rrmovl %esp,%ebp
+        irmovl $0x0,%eax
+        mrmovl 0x8(%ebp),%ecx
+        irmovl $0x0,%edx
+        addl %edx,%ecx
+        je End
+        mrmovl (%ecx),%eax
+        mrmovl 0x4(%ecx),%ecx
+        pushl %eax
+        pushl %ecx
+        call Sum
+        popl %ecx
+        popl %ecx
+        addl %ecx,%eax
+End:    rrmovl %ebp,%esp
+        popl %ebp
+        ret
+
+        .pos 0x100
+Stack:

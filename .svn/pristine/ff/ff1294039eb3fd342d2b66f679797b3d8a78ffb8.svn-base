@@ -1,0 +1,260 @@
+#include "cachelab.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <getopt.h>
+
+#define MISS 0
+#define MISS_EVIC 1
+#define HIT 2
+
+/* global variable */
+
+int hit_counter=0;
+int miss_counter=0;
+int evictions_counter=0;
+int total_counter=0;
+
+
+/* cache_line */
+
+struct cache_line
+{
+	int valid;
+    unsigned long long tag;
+    unsigned int time;
+};
+
+/* functions */
+struct cache_line* cache_line_init();
+void cache_line_free(struct cache_line* _this);
+int cache_line_check_tag(struct cache_line* _this, unsigned long long address, unsigned long long tag_mask);
+int cache_line_check_valid(struct cache_line* _this);
+void cache_line_modify(struct cache_line* _this, unsigned long long address, unsigned long long tag_mask, unsigned int time);
+void cache_line_visit(struct cache_line* _this, unsigned int time);
+
+struct cache_line* cache_line_init() {
+    struct cache_line* tmp=malloc(sizeof(struct cache_line));
+    tmp->valid=0;
+    tmp->time=0;
+    
+    return tmp;
+}
+
+void cache_line_free(struct cache_line* _this) {
+    free(_this);
+}
+
+int cache_line_check_tag(struct cache_line* _this, unsigned long long address, unsigned long long tag_mask) {
+    if (_this->tag==(address & tag_mask)) {
+        return 1 && _this->valid;
+    }
+    else return 0;
+}
+
+int cache_line_check_valid(struct cache_line* _this) {
+    return _this->valid;
+}
+
+void cache_line_modify(struct cache_line* _this, unsigned long long address, unsigned long long tag_mask, unsigned int time) {
+    _this->tag=address&tag_mask;
+    _this->time=time;
+    _this->valid=1;
+}
+
+void cache_line_visit(struct cache_line* _this, unsigned int time) {
+    _this->time=time;
+}
+
+/* --------------------------------------- */
+
+/* cache_set */
+
+struct cache_set {
+	int size;
+	struct cache_line** line;
+    unsigned int curr_time;
+};
+struct cache_set* cache_set_init(int size);
+void cache_set_free(struct cache_set* _this);
+int cache_set_visit(struct cache_set* _this, unsigned long long address, unsigned long long tag_mask);
+int cache_set_check(struct cache_set* _this, unsigned long long address, unsigned long long tag_mask);
+int cache_set_find_least_use(struct cache_set* _this);
+int cache_set_find_invalid(struct cache_set* _this);
+
+
+struct cache_set* cache_set_init(int size) {
+    int i;
+    struct cache_set* tmp=malloc(sizeof(struct cache_set));
+    
+    tmp->size=size;
+    tmp->curr_time=0;
+    tmp->line=malloc(sizeof(struct cache_line*)*size);
+    for (i=0; i<size; i++) {
+        tmp->line[i]=cache_line_init();
+    }
+    
+    return tmp;
+}
+
+void cache_set_free(struct cache_set* _this) {
+    int i;
+    
+    for (i=0; i<_this->size; i++) {
+        cache_line_free(_this->line[i]);
+    }
+    free(_this->line);
+    free(_this);
+}
+
+int cache_set_find_least_use(struct cache_set* _this) {
+    int i,least=0,least_time=_this->line[0]->time;
+    
+    if (_this->size<=0) return -2;
+    
+    for (i=1; i<_this->size; i++) {
+        if (_this->line[i]->time<least_time) {
+            least_time=_this->line[i]->time;
+            least=i;
+        }
+    }
+    
+    return least;
+}
+
+int cache_set_find_invalid(struct cache_set* _this) {
+    for (int i=0; i<_this->size; i++) {
+        if (cache_line_check_valid(_this->line[i])) return i;
+    }
+    return -1;
+}
+
+int cache_set_check(struct cache_set* _this, unsigned long long address, unsigned long long tag_mask) {
+    int i;
+    
+    for (i=0; i<_this->size; i++) {
+        if (cache_line_check_tag(_this->line[i], address, tag_mask)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int cache_set_visit(struct cache_set* _this, unsigned long long address, unsigned long long tag_mask) {
+    int least_used_line, invalid_line, exist_line;
+    
+    _this->curr_time++;
+    total_counter++;
+    
+    exist_line=cache_set_check(_this,address,tag_mask);
+    if (exist_line>=0) {
+        cache_line_visit(_this->line[exist_line], _this->curr_time);
+        hit_counter++;
+        return HIT;
+    }
+    
+    invalid_line=cache_set_find_invalid(_this);
+    if (invalid_line>=0) {
+        cache_line_modify(_this->line[invalid_line], address, tag_mask, _this->curr_time);
+        miss_counter++;
+        return MISS;
+    }
+    
+    least_used_line=cache_set_find_least_use(_this);
+    cache_line_modify(_this->line[least_used_line], address, tag_mask, _this->curr_time);
+    miss_counter++;
+    evictions_counter++;
+    return MISS_EVIC;
+}
+
+void run_cache(int display_trace_inf, int associativity, int set_index_bits, int block_bits, char* tracefile) {
+    int i;
+    int set_size;
+    unsigned long long block_mask,tag_mask,set_mask,set_id;
+    struct cache_set** set;
+    char op;
+    unsigned long long address;
+    unsigned int length;
+    int result=-1,result2=-1;
+
+    set_size=(((unsigned long long)1)<<set_index_bits);
+    block_mask=(((unsigned long long)1)<<block_bits)-1;
+    set_mask=((((unsigned long long)1)<<(set_index_bits+block_bits))-1)^block_mask;
+    tag_mask=((unsigned long long)(-1))^(set_mask&block_mask);
+
+    set=malloc(sizeof(struct cache_set*)*set_size);
+    for (i=0; i<set_size; i++) {
+        set[i]=cache_set_init(associativity);
+    }
+
+    FILE *trace=fopen(tracefile,"r");
+    while (fscanf(trace,"%c%llx,%d",&op,&address,&length)!=EOF) {
+        set_id=(address&set_mask)>>block_bits;
+        switch(op){
+            case 'I':
+                continue;
+            case 'L': case 'S':
+                result=cache_set_visit(set[set_id],address,tag_mask);
+                if (display_trace_inf) {
+                    printf("%c %llx,%d ", op, address, length);
+                    if (result==HIT) printf("hit\n");
+                    else if (result==MISS) printf("miss\n");
+                    else if (result==MISS_EVIC) printf("miss eviction\n");
+                }
+                break;
+            case 'M':
+                result=cache_set_visit(set[set_id],address,tag_mask);
+                result2=cache_set_visit(set[set_id],address,tag_mask);
+                if (display_trace_inf) {
+                    printf("%c %llx,%d ", op, address, length);
+                    if (result==HIT) printf("hit ");
+                    else if (result==MISS) printf("miss ");
+                    else if (result==MISS_EVIC) printf("miss eviction ");
+                    if (result2==HIT) printf("hit\n");
+                    else if (result2==MISS) printf("miss\n");
+                    else if (result2==MISS_EVIC) printf("miss eviction\n");
+                }
+                break;
+        }
+    }
+    printSummary(hit_counter,miss_counter,evictions_counter);
+    for (i=0; i<set_size; i++) {
+        cache_set_free(set[i]);
+    }
+    free(set);
+}
+
+void usage(char* filename) {
+    printf("Usage: %s [-hv] -s <num> -E <num> -b <num> -t <file>\n", filename);
+    printf("Options:\n  -h         Print this help message.\n  -v         Optional verbose flag.\n  -s <num>   Number of set index bits.\n  -E <num>   Number of lines per set.\n  -b <num>   Number of block offset bits.\n  -t <file>  Trace file.\n\n");
+    printf("Examples:\n  linux>  %s -s 4 -E 1 -b 4 -t traces/yi.trace\n  linux>  %s -v -s 8 -E 2 -b 4 -t traces/yi.trace\n", filename, filename);
+}
+
+int main(int argc, char* argv[])
+{
+    int ch, display_trace_inf=0, associativity=-1, set_index_bits=-1, block_bits=-1;
+    char tracefile[128];
+
+    opterr = 0;
+    while((ch = getopt(argc,argv,"hvs:E:b:t:"))!= -1) {
+        switch(ch) {
+            case 'h': 
+                usage(argv[0]);
+                return 0;
+                break;
+            case 'v': display_trace_inf=1; break;
+            case 'E': associativity=atoi(optarg); break;
+            case 's': set_index_bits=atoi(optarg); break;
+            case 'b': block_bits=atoi(optarg); break;
+            case 't': strcpy(tracefile,optarg); break;
+
+            default: 
+                printf("other option :%c\n",ch);
+        }
+    }
+
+    run_cache(display_trace_inf, associativity, set_index_bits, block_bits, tracefile);
+
+    return 0;
+}

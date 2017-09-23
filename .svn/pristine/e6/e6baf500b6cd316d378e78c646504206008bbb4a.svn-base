@@ -1,0 +1,316 @@
+#/* $begin ncopy-ys */
+##################################################################
+# ncopy.ys - Copy a src block of len ints to dst.
+# Return the number of positive ints (>0) contained in src.
+#
+# Include your name and ID here.
+# Name: Jiacheng Ma
+# ID:   5140379041
+# Describe how and why you modified the baseline code.
+#
+# This program use a x16 Loop and a x16 jump table to copy and find
+# out the number of positive numbers. If len >= 16, the program will
+# copy 16 elements together, and do it until len <16. When len<16, 
+# the program will enter a jump table to jump to the right instruction 
+# and finish the rest copy. All instructions are put specially to avoid 
+# bubbles.
+##################################################################
+# Do not modify this portion
+# Function prologue.
+ncopy:	
+	pushl %ebp			# Save old frame pointer
+	rrmovl %esp,%ebp	# Set up new frame pointer
+	pushl %esi			#Save callee-save regs
+	pushl %ebx
+	pushl %edi
+	mrmovl 8(%ebp),%ebx		# src
+	mrmovl 16(%ebp),%edx	# len
+	mrmovl 12(%ebp),%ecx	# dst
+
+##################################################################
+# You can modify this portion
+	# Loop header
+	xorl %eax,%eax		# count = 0;
+Start:
+	iaddl $-16,%edx
+	andl %edx,%edx		# len >=0?
+	jge Loop			# if so, goto loop
+	addl %edx,%edx
+	addl %edx,%edx
+	mrmovl End_jump_table(%edx),%edx
+	pushl %edx
+	ret
+
+Jump_table:             # jump to here when len<16
+	.long Done
+	.long x0
+	.long x1
+	.long x2
+	.long x3
+	.long x4
+	.long x5
+	.long x6
+	.long x7
+	.long x8
+	.long x9
+	.long x10
+	.long x11
+	.long x12
+	.long x13
+	.long x14
+End_jump_table:         # use the end of the table to reduce an instruction
+	.long x15
+
+# jump table will jump to these 16 instructions
+
+x15:
+	mrmovl 60(%ebx),%edi
+	rmmovl %edi,60(%ecx)
+	andl %edi,%edi
+	jle x14
+	iaddl $1,%eax
+
+x14:
+	mrmovl 56(%ebx),%edi
+	rmmovl %edi,56(%ecx)
+	andl %edi,%edi
+	jle x13
+	iaddl $1,%eax
+
+x13:
+	mrmovl 52(%ebx),%edi
+	rmmovl %edi,52(%ecx)
+	andl %edi,%edi
+	jle x12
+	iaddl $1,%eax
+	
+x12:
+	mrmovl 48(%ebx),%edi
+	rmmovl %edi,48(%ecx)
+	andl %edi,%edi
+	jle x11
+	iaddl $1,%eax
+
+x11:
+	mrmovl 44(%ebx),%edi
+	rmmovl %edi,44(%ecx)
+	andl %edi,%edi
+	jle x10
+	iaddl $1,%eax
+
+x10:
+	mrmovl 40(%ebx),%edi
+	rmmovl %edi,40(%ecx)
+	andl %edi,%edi
+	jle x9
+	iaddl $1,%eax
+
+x9:
+	mrmovl 36(%ebx),%edi
+	rmmovl %edi,36(%ecx)
+	andl %edi,%edi
+	jle x8
+	iaddl $1,%eax
+
+x8:
+	mrmovl 32(%ebx),%edi
+	rmmovl %edi,32(%ecx)
+	andl %edi,%edi
+	jle x7
+	iaddl $1,%eax
+
+x7:
+	mrmovl 28(%ebx),%edi
+	rmmovl %edi,28(%ecx)
+	andl %edi,%edi
+	jle x6
+	iaddl $1,%eax
+
+x6:
+	mrmovl 24(%ebx),%edi
+	rmmovl %edi,24(%ecx)
+	andl %edi,%edi
+	jle x5
+	iaddl $1,%eax
+	
+
+x5:
+	mrmovl 20(%ebx),%edi
+	rmmovl %edi,20(%ecx)
+	andl %edi,%edi
+	jle x4
+	iaddl $1,%eax
+	
+
+x4:
+	mrmovl 16(%ebx),%edi
+	rmmovl %edi,16(%ecx)
+	andl %edi,%edi
+	jle x3
+	iaddl $1,%eax
+	
+x3:
+	mrmovl 12(%ebx),%edi
+	rmmovl %edi,12(%ecx)
+	andl %edi,%edi
+	jle x2
+	iaddl $1,%eax
+	
+x2:
+	mrmovl 8(%ebx),%edi
+	rmmovl %edi,8(%ecx)
+	andl %edi,%edi
+	jle x1
+	iaddl $1,%eax
+	
+x1:
+	mrmovl 4(%ebx),%edi
+	rmmovl %edi,4(%ecx)
+	andl %edi,%edi
+	jle x0
+	iaddl $1,%eax
+
+x0:
+	mrmovl (%ebx),%edi
+	rmmovl %edi,(%ecx)
+	andl %edi,%edi
+	jle Done
+	iaddl $1,%eax
+
+End_jump:
+	jmp Done
+
+
+Loop:                           # the loop which will copy 16 elements together
+l15:
+	mrmovl 60(%ebx),%edi
+	rmmovl %edi,60(%ecx)
+	andl %edi,%edi
+	jle l14
+	iaddl $1,%eax
+
+l14:
+	mrmovl 56(%ebx),%edi
+	rmmovl %edi,56(%ecx)
+	andl %edi,%edi
+	jle l13
+	iaddl $1,%eax
+
+l13:
+	mrmovl 52(%ebx),%edi
+	rmmovl %edi,52(%ecx)
+	andl %edi,%edi
+	jle l12
+	iaddl $1,%eax
+	
+l12:
+	mrmovl 48(%ebx),%edi
+	rmmovl %edi,48(%ecx)
+	andl %edi,%edi
+	jle l11
+	iaddl $1,%eax
+
+l11:
+	mrmovl 44(%ebx),%edi
+	rmmovl %edi,44(%ecx)
+	andl %edi,%edi
+	jle l10
+	iaddl $1,%eax
+
+l10:
+	mrmovl 40(%ebx),%edi
+	rmmovl %edi,40(%ecx)
+	andl %edi,%edi
+	jle l9
+	iaddl $1,%eax
+
+l9:
+	mrmovl 36(%ebx),%edi
+	rmmovl %edi,36(%ecx)
+	andl %edi,%edi
+	jle l8
+	iaddl $1,%eax
+
+l8:
+	mrmovl 32(%ebx),%edi
+	rmmovl %edi,32(%ecx)
+	andl %edi,%edi
+	jle l7
+	iaddl $1,%eax
+
+l7:
+	mrmovl 28(%ebx),%edi
+	rmmovl %edi,28(%ecx)
+	andl %edi,%edi
+	jle l6
+	iaddl $1,%eax
+
+l6:
+	mrmovl 24(%ebx),%edi
+	rmmovl %edi,24(%ecx)
+	andl %edi,%edi
+	jle l5
+	iaddl $1,%eax
+	
+
+l5:
+	mrmovl 20(%ebx),%edi
+	rmmovl %edi,20(%ecx)
+	andl %edi,%edi
+	jle l4
+	iaddl $1,%eax
+	
+
+l4:
+	mrmovl 16(%ebx),%edi
+	rmmovl %edi,16(%ecx)
+	andl %edi,%edi
+	jle l3
+	iaddl $1,%eax
+	
+l3:
+	mrmovl 12(%ebx),%edi
+	rmmovl %edi,12(%ecx)
+	andl %edi,%edi
+	jle l2
+	iaddl $1,%eax
+	
+l2:
+	mrmovl 8(%ebx),%edi
+	rmmovl %edi,8(%ecx)
+	andl %edi,%edi
+	jle l1
+	iaddl $1,%eax
+	
+l1:
+	mrmovl 4(%ebx),%edi
+	rmmovl %edi,4(%ecx)
+	andl %edi,%edi
+	jle l0
+	iaddl $1,%eax
+
+l0:
+	mrmovl (%ebx),%edi
+	rmmovl %edi,(%ecx)
+	andl %edi,%edi
+	jle End_loop
+	iaddl $1,%eax
+
+End_loop:
+	iaddl $64,%ebx
+	iaddl $64,%ecx
+	jmp Start
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+	popl %edi			#Restore callee-save registers
+	popl %ebx
+	popl %esi
+	rrmovl %ebp,%esp
+	popl %ebp
+	ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end ncopy-ys */
